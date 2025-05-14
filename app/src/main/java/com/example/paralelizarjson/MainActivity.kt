@@ -33,6 +33,7 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+@OptIn(ExperimentalCoroutinesApi::class)
 @Composable
 fun JsonLoaderUI(modifier: Modifier = Modifier, readJson: () -> String) {
     var resultText by remember { mutableStateOf("Cargando datos...") }
@@ -47,7 +48,8 @@ fun JsonLoaderUI(modifier: Modifier = Modifier, readJson: () -> String) {
             isLoading = true
             val json = Json { ignoreUnknownKeys = true }
             var totalItems = 0
-            val dispatcher = Executors.newFixedThreadPool(threadCount.toInt()).asCoroutineDispatcher()
+            val dispatcherParser = Dispatchers.Default.limitedParallelism(threadCount.toInt())
+            val dispatcherJson = Dispatchers.IO.limitedParallelism(threadCount.toInt())
 
             val time = measureTimeMillis {
                 withContext(Dispatchers.Default) {
@@ -63,10 +65,10 @@ fun JsonLoaderUI(modifier: Modifier = Modifier, readJson: () -> String) {
                         }
                     } else {
                         try {
-                            val jsonString = withContext(Dispatchers.IO) { readJson() }
+                            val jsonString = async(dispatcherJson) { readJson() }
                             val deferredLists = (1..maxThreads*3).map {
-                                async(dispatcher) {
-                                    json.decodeFromString<List<WeatherData>>(jsonString)
+                                async(dispatcherParser) {
+                                    json.decodeFromString<List<WeatherData>>(jsonString.await())
                                 }
                             }
                             val allResults = deferredLists.awaitAll()
