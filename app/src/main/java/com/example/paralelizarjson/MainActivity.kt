@@ -4,7 +4,6 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -14,7 +13,6 @@ import androidx.compose.ui.unit.dp
 import com.example.paralelizarjson.ui.theme.ParalelizarJsonTheme
 import kotlinx.coroutines.*
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.decodeFromString
 import java.util.concurrent.Executors
 import kotlin.system.measureTimeMillis
 
@@ -39,7 +37,7 @@ class MainActivity : ComponentActivity() {
 fun JsonLoaderUI(modifier: Modifier = Modifier, readJson: () -> String) {
     var resultText by remember { mutableStateOf("Cargando datos...") }
     var isLoading by remember { mutableStateOf(false) }
-    var threadCount by remember { mutableStateOf(1f) }
+    var threadCount by remember { mutableFloatStateOf(1f) }
     val maxThreads = Runtime.getRuntime().availableProcessors()
 
     val scope = rememberCoroutineScope()
@@ -56,7 +54,7 @@ fun JsonLoaderUI(modifier: Modifier = Modifier, readJson: () -> String) {
                     if (threadCount.toInt() == 1) {
                         try {
                             val jsonString = readJson()
-                            val deferredLists = (1..30).map {
+                            val deferredLists = (1..maxThreads*3).map {
                                 json.decodeFromString<List<WeatherData>>(jsonString)
                             }
                             totalItems = deferredLists.sumOf { it.size }
@@ -66,7 +64,7 @@ fun JsonLoaderUI(modifier: Modifier = Modifier, readJson: () -> String) {
                     } else {
                         try {
                             val jsonString = withContext(Dispatchers.IO) { readJson() }
-                            val deferredLists = (1..30).map {
+                            val deferredLists = (1..maxThreads*3).map {
                                 async(dispatcher) {
                                     json.decodeFromString<List<WeatherData>>(jsonString)
                                 }
