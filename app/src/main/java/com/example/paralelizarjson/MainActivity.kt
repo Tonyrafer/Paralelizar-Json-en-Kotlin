@@ -4,6 +4,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -14,6 +15,7 @@ import com.example.paralelizarjson.ui.theme.ParalelizarJsonTheme
 import kotlinx.coroutines.*
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.decodeFromString
+import java.util.concurrent.Executors
 import kotlin.system.measureTimeMillis
 
 class MainActivity : ComponentActivity() {
@@ -47,26 +49,36 @@ fun JsonLoaderUI(modifier: Modifier = Modifier, readJson: () -> String) {
             isLoading = true
             val json = Json { ignoreUnknownKeys = true }
             var totalItems = 0
-            val dispatcher = newFixedThreadPoolContext(threadCount.toInt(), "JsonPool")
+            val dispatcher = Executors.newFixedThreadPool(threadCount.toInt()).asCoroutineDispatcher()
 
             val time = measureTimeMillis {
-                try {
-                    val jsonString = withContext(Dispatchers.IO) { readJson() }
-
-                    val deferredLists = (1..20).map {
-                        async(dispatcher) {
-                            json.decodeFromString<List<WeatherData>>(jsonString)
+                withContext(Dispatchers.Default) {
+                    if (threadCount.toInt() == 1) {
+                        try {
+                            val jsonString = readJson()
+                            val deferredLists = (1..30).map {
+                                json.decodeFromString<List<WeatherData>>(jsonString)
+                            }
+                            totalItems = deferredLists.sumOf { it.size }
+                        } catch (e: Exception) {
+                            resultText = "Error al cargar los datos: ${e.localizedMessage}"
+                        }
+                    } else {
+                        try {
+                            val jsonString = withContext(Dispatchers.IO) { readJson() }
+                            val deferredLists = (1..30).map {
+                                async(dispatcher) {
+                                    json.decodeFromString<List<WeatherData>>(jsonString)
+                                }
+                            }
+                            val allResults = deferredLists.awaitAll()
+                            totalItems = allResults.sumOf { it.size }
+                        } catch (e: Exception) {
+                            resultText = "Error al cargar los datos: ${e.localizedMessage}"
                         }
                     }
-
-                    val allResults = deferredLists.awaitAll()
-                    allResults.size;
-                    totalItems = allResults.sumOf { it.size }
-                } catch (e: Exception) {
-                    resultText = "Error al cargar los datos: ${e.localizedMessage}"
                 }
             }
-
             resultText = "Datos cargados: $totalItems\nTiempo total: ${time}ms"
             isLoading = false
         }
@@ -99,7 +111,7 @@ fun JsonLoaderUI(modifier: Modifier = Modifier, readJson: () -> String) {
         // Botón para volver a ejecutar la carga
         Button(
             onClick = { loadJson() },
-            enabled = !isLoading
+            enabled = !isLoading,
         ) {
             Text("Cargar JSON")
         }
