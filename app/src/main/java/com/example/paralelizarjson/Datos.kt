@@ -4,7 +4,7 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 @Serializable
-data class WeatherData(
+data class Datos(
     @SerialName("name") val first_name: String,
     @SerialName("language") val language: String,
     @SerialName("id") val id: String,

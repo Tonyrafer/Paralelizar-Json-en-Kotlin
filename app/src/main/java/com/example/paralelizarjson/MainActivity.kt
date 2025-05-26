@@ -1,5 +1,6 @@
 package com.example.paralelizarjson
 
+import android.content.Context
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -11,7 +12,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.example.paralelizarjson.ui.theme.ParalelizarJsonTheme
 import kotlinx.coroutines.*
@@ -25,10 +26,9 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             ParalelizarJsonTheme {
-                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    JsonLoaderUI(
-                        modifier = Modifier.padding(innerPadding),
-                        readJson = { assets.open("data.json").bufferedReader().readText() }
+                Scaffold(modifier = Modifier.fillMaxSize()) { paddingInterior ->
+                    CargadorJsonUI(
+                        modifier = Modifier.padding(paddingInterior)
                     )
                 }
             }
@@ -38,68 +38,78 @@ class MainActivity : ComponentActivity() {
 
 @OptIn(ExperimentalCoroutinesApi::class)
 @Composable
-fun JsonLoaderUI(modifier: Modifier = Modifier, readJson: () -> String) {
-    var resultText by remember { mutableStateOf("Esperando acción del usuario...") }
-    var isLoading by remember { mutableStateOf(false) }
-    var threadCount by remember { mutableFloatStateOf(2f) }
-    var useSequential by remember { mutableStateOf(false) }
-    var useDefaultDispatchers by remember { mutableStateOf(false) }
-    var jsonFileCountText by remember { mutableStateOf("1") }
-    var parsedData by remember { mutableStateOf<List<WeatherData>>(emptyList()) }
+fun CargadorJsonUI(modifier: Modifier = Modifier) {
+    val contexto = LocalContext.current
+    var textoResultado by remember { mutableStateOf("Esperando acción del usuario...") }
+    var estaCargando by remember { mutableStateOf(false) }
+    var numeroHilos by remember { mutableFloatStateOf(2f) }
+    var usarSecuencial by remember { mutableStateOf(false) }
+    var usarDispatchersPorDefecto by remember { mutableStateOf(false) }
+    var textoCantidadArchivosJson by remember { mutableStateOf("1") }
+    var datosProcesados by remember { mutableStateOf<List<Datos>>(emptyList()) }
 
-    val jsonFileCount = jsonFileCountText.toIntOrNull()?.coerceAtLeast(1) ?: 1
-    val maxThreads = Runtime.getRuntime().availableProcessors()
-    val minThreads = 2
-    val maxEvenThreads = if (maxThreads % 2 == 0) maxThreads else maxThreads - 1
-    val numSteps = ((maxEvenThreads - minThreads) / 2)
-    val scope = rememberCoroutineScope()
+    val cantidadArchivosJson = textoCantidadArchivosJson.toIntOrNull()?.coerceAtLeast(1) ?: 1
+    val maximoHilos = Runtime.getRuntime().availableProcessors()
+    val minimoHilos = 2
+    val hilosParesMaximos = if (maximoHilos % 2 == 0) maximoHilos else maximoHilos - 1
+    val pasos = ((hilosParesMaximos - minimoHilos) / 2)
+    val alcanceCorrutina = rememberCoroutineScope()
 
-    fun loadJson() = scope.launch {
-        isLoading = true
-        resultText = ""
-        parsedData = emptyList() // Limpia tabla para refrescar
+    fun leerJson(contexto: Context, indice: Int): String {
+        val nombreArchivo = "data$indice.json"
+        return contexto.assets.open(nombreArchivo).bufferedReader().readText()
+    }
+
+    suspend fun cargarJson() {
+        estaCargando = true
+        textoResultado = ""
+        datosProcesados = emptyList()
 
         val json = Json { ignoreUnknownKeys = true }
-        val effectiveThreads = if (useSequential) 1 else threadCount.toInt().coerceAtLeast(1)
+        val hilosEfectivos = if (usarSecuencial) 1 else numeroHilos.toInt().coerceAtLeast(1)
 
         val dispatcherParser =
-            if (useDefaultDispatchers) Dispatchers.Default else Dispatchers.Default.limitedParallelism(
-                effectiveThreads
-            )
-        val dispatcherJson =
-            if (useDefaultDispatchers) Dispatchers.IO else Dispatchers.IO.limitedParallelism(
-                effectiveThreads
+            if (usarDispatchersPorDefecto) Dispatchers.Default else Dispatchers.Default.limitedParallelism(
+                hilosEfectivos
             )
 
-        val time = measureTimeMillis {
-            withContext(Dispatchers.Default) {
-                try {
-                    parsedData = if (useSequential) {
-                        val jsonString = readJson()
-                        (1..jsonFileCount).flatMap {
-                            json.decodeFromString<List<WeatherData>>(
-                                jsonString
-                            )
-                        }
-                    } else {
-                        val jsonStringDeferred = async(dispatcherJson) { readJson() }
-                        val deferredLists = (1..jsonFileCount).map {
-                            async(dispatcherParser) {
-                                json.decodeFromString<List<WeatherData>>(
-                                    jsonStringDeferred.await()
-                                )
-                            }
-                        }
-                        deferredLists.awaitAll().flatten()
+        val dispatcherJson =
+            if (usarDispatchersPorDefecto) Dispatchers.IO else Dispatchers.IO.limitedParallelism(
+                hilosEfectivos
+            )
+
+        val tiempo = measureTimeMillis {
+            try {
+                datosProcesados = if (usarSecuencial) {
+                    (1..cantidadArchivosJson).flatMap {
+                        val contenidoJson = leerJson(contexto, it % 5)
+                        json.decodeFromString<List<Datos>>(contenidoJson)
                     }
-                } catch (e: Exception) {
-                    resultText = "Error al cargar datos: ${e.localizedMessage}"
+                } else {
+                    withContext(Dispatchers.Default) {
+                        runBlocking {
+                            val contenidosJson = (1..cantidadArchivosJson).map { it ->
+                                async(dispatcherJson) {
+                                    leerJson(contexto, it % 5)
+                                }
+                            }
+
+                            val listasJson = contenidosJson.map { contenidoJson ->
+                                async(dispatcherParser) {
+                                    json.decodeFromString<List<Datos>>(contenidoJson.await())
+                                }
+                            }
+                            listasJson.awaitAll().flatten()
+                        }
+                    }
                 }
+            } catch (e: Exception) {
+                textoResultado = "Error al cargar datos: ${e.localizedMessage}"
             }
         }
-        resultText = "Datos cargados: ${parsedData.size}\nTiempo total: ${time}ms"
 
-        isLoading = false
+        textoResultado = "Datos cargados: ${datosProcesados.size}\nTiempo total: ${tiempo}ms"
+        estaCargando = false
     }
 
     Column(
@@ -112,10 +122,10 @@ fun JsonLoaderUI(modifier: Modifier = Modifier, readJson: () -> String) {
         Row {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Checkbox(
-                    checked = useSequential,
+                    checked = usarSecuencial,
                     onCheckedChange = {
-                        useSequential = it
-                        useDefaultDispatchers = false
+                        usarSecuencial = it
+                        usarDispatchersPorDefecto = false
                     }
                 )
                 Text("Secuencial")
@@ -123,61 +133,63 @@ fun JsonLoaderUI(modifier: Modifier = Modifier, readJson: () -> String) {
 
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Checkbox(
-                    checked = useDefaultDispatchers,
+                    checked = usarDispatchersPorDefecto,
                     onCheckedChange = {
-                        useDefaultDispatchers = it
-                        useSequential = false
+                        usarDispatchersPorDefecto = it
+                        usarSecuencial = false
                     }
                 )
-                Text("Dispatchers kotlin")
+                Text("Dispatchers Kotlin")
             }
         }
 
-
         OutlinedTextField(
-            value = jsonFileCountText,
-            onValueChange = { jsonFileCountText = it },
+            value = textoCantidadArchivosJson,
+            onValueChange = { textoCantidadArchivosJson = it },
             label = { Text("Nº de archivos JSON a procesar") },
             singleLine = true
         )
 
-        if (!useSequential && !useDefaultDispatchers) {
-            Text("Nº de hilos: ${threadCount.toInt()} / $maxEvenThreads")
+        if (!usarSecuencial && !usarDispatchersPorDefecto) {
+            Text("Nº de hilos: ${numeroHilos.toInt()} / $hilosParesMaximos")
             Slider(
-                value = threadCount,
+                value = numeroHilos,
                 onValueChange = {
-                    val rounded = (it / 2).roundToInt() * 2
-                    threadCount = rounded.toFloat()
+                    val redondeado = (it / 2).roundToInt() * 2
+                    numeroHilos = redondeado.toFloat()
                 },
-                valueRange = minThreads.toFloat()..maxEvenThreads.toFloat(),
-                steps = numSteps - 1
+                valueRange = minimoHilos.toFloat()..hilosParesMaximos.toFloat(),
+                steps = pasos - 1
             )
         }
 
         Button(
-            onClick = { loadJson() },
-            enabled = !isLoading
+            onClick = {
+                alcanceCorrutina.launch {
+                    cargarJson()
+                }
+            },
+            enabled = !estaCargando
         ) {
             Text("Cargar JSON")
         }
 
-
-        if (isLoading) {
+        if (estaCargando) {
             CircularProgressIndicator()
         }
 
-        if (!isLoading) {
-            Text(text = resultText, style = MaterialTheme.typography.bodyLarge)
+        if (!estaCargando) {
+            Text(textoResultado, style = MaterialTheme.typography.bodyLarge)
         }
 
-        if (parsedData.isNotEmpty()) {
+        if (datosProcesados.isNotEmpty()) {
             Text("Datos cargados:", style = MaterialTheme.typography.titleMedium)
             LazyColumn(
                 modifier = Modifier
                     .fillMaxWidth()
                     .heightIn(max = 300.dp)
             ) {
-                items(parsedData.take(parsedData.size)) { item ->
+                items(datosProcesados.take(datosProcesados.size)) { item ->
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -190,13 +202,5 @@ fun JsonLoaderUI(modifier: Modifier = Modifier, readJson: () -> String) {
                 }
             }
         }
-    }
-}
-
-@Preview(showBackground = true)
-@Composable
-fun JsonLoaderUIPreview() {
-    ParalelizarJsonTheme {
-        JsonLoaderUI(readJson = { "[]" })
     }
 }
