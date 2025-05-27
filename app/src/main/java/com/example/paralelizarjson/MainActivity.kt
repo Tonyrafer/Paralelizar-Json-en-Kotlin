@@ -55,6 +55,7 @@ fun CargadorJsonUI(modifier: Modifier = Modifier) {
     val pasos = ((hilosParesMaximos - minimoHilos) / 2)
     val alcanceCorrutina = rememberCoroutineScope()
 
+
     fun leerJson(contexto: Context, indice: Int): String {
         val nombreArchivo = "data$indice.json"
         return contexto.assets.open(nombreArchivo).bufferedReader().readText()
@@ -64,6 +65,7 @@ fun CargadorJsonUI(modifier: Modifier = Modifier) {
         estaCargando = true
         textoResultado = ""
         datosProcesados = emptyList()
+
 
         val json = Json { ignoreUnknownKeys = true }
         val hilosEfectivos = if (usarSecuencial) 1 else numeroHilos.toInt().coerceAtLeast(1)
@@ -80,28 +82,27 @@ fun CargadorJsonUI(modifier: Modifier = Modifier) {
 
         val tiempo = measureTimeMillis {
             try {
-                datosProcesados = if (usarSecuencial) {
-                    (1..cantidadArchivosJson).flatMap {
+                if (usarSecuencial) {
+                    datosProcesados = (1..cantidadArchivosJson).flatMap {
                         val contenidoJson = leerJson(contexto, it % 5)
                         json.decodeFromString<List<Datos>>(contenidoJson)
                     }
                 } else {
                     withContext(Dispatchers.Default) {
-                        runBlocking {
-                            val contenidosJson = (1..cantidadArchivosJson).map { it ->
-                                async(dispatcherJson) {
-                                    leerJson(contexto, it % 5)
-                                }
+                        val contenidosJson = (1..cantidadArchivosJson).map { it ->
+                            async(dispatcherJson) {
+                                leerJson(contexto, it % 5)
                             }
-
-                            val listasJson = contenidosJson.map { contenidoJson ->
-                                async(dispatcherParser) {
-                                    json.decodeFromString<List<Datos>>(contenidoJson.await())
-                                }
-                            }
-                            listasJson.awaitAll().flatten()
                         }
+
+                        val listasJson = contenidosJson.map { contenidoJson ->
+                            async(dispatcherParser) {
+                                json.decodeFromString<List<Datos>>(contenidoJson.await())
+                            }
+                        }
+                        datosProcesados = listasJson.awaitAll().flatten()
                     }
+
                 }
             } catch (e: Exception) {
                 textoResultado = "Error al cargar datos: ${e.localizedMessage}"
@@ -110,6 +111,7 @@ fun CargadorJsonUI(modifier: Modifier = Modifier) {
 
         textoResultado = "Datos cargados: ${datosProcesados.size}\nTiempo total: ${tiempo}ms"
         estaCargando = false
+
     }
 
     Column(
@@ -189,7 +191,7 @@ fun CargadorJsonUI(modifier: Modifier = Modifier) {
                     .fillMaxWidth()
                     .heightIn(max = 300.dp)
             ) {
-                items(datosProcesados.take(datosProcesados.size)) { item ->
+                items(datosProcesados) { item ->
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
