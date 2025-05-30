@@ -23,25 +23,21 @@ suspend fun subtarea2b() {
 
 suspend fun tarea2() = coroutineScope {
     println("Inicio tarea2")
-
-    val jobA = async(Dispatchers.Default) { subtarea2a() }
-    val jobB = async(Dispatchers.Default) { subtarea2b() }
-
+    val jobA = async{ subtarea2a() }
+    val jobB = async{ subtarea2b() }
     jobA.await()
     jobB.await()
-
     println("Fin tarea2")
 }
 
-fun main() = runBlocking {
-    val start = System.currentTimeMillis()
-
-    val job1 = async(Dispatchers.Default) { tarea1() }
-    val job2 = async(Dispatchers.Default) { tarea2() }
-
-    job1.await()
-    job2.await()
-
-    val end = System.currentTimeMillis()
-    println("Tiempo total: ${end - start} ms")
+fun main() {
+    runBlocking {
+        val start = System.currentTimeMillis()
+        val job1 = async(Dispatchers.Default) { tarea1() }
+        val job2 = async(Dispatchers.Default) { tarea2() }
+        job1.await()
+        job2.await()
+        val end = System.currentTimeMillis()
+        println("Tiempo total: ${end - start} ms")
+    }
 }

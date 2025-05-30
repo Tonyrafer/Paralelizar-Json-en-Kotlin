@@ -64,7 +64,6 @@ fun CargadorJsonUI(modifier: Modifier = Modifier) {
     suspend fun cargarJson() {
         estaCargando = true
         textoResultado = ""
-        datosProcesados = emptyList()
 
 
         val json = Json { ignoreUnknownKeys = true }
@@ -89,7 +88,7 @@ fun CargadorJsonUI(modifier: Modifier = Modifier) {
                     }
                 } else {
                     withContext(Dispatchers.Default) {
-                        val contenidosJson = (1..cantidadArchivosJson).map { it ->
+                        val contenidosJson = (1..cantidadArchivosJson).map {
                             async(dispatcherJson) {
                                 leerJson(contexto, it % 5)
                             }
@@ -168,6 +167,7 @@ fun CargadorJsonUI(modifier: Modifier = Modifier) {
         Button(
             onClick = {
                 alcanceCorrutina.launch {
+                    datosProcesados = emptyList()
                     cargarJson()
                 }
             },

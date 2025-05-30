@@ -4,22 +4,22 @@ fun tarea1() {
     println("Fin tarea1")
 }
 
-fun subtarea2a() {
-    println("Inicio subtarea2a")
+fun subTarea2A() {
+    println("Inicio subTarea2A")
     Thread.sleep(1000)
-    println("Fin subtarea2a")
+    println("Fin subTarea2A")
 }
 
-fun subtarea2b() {
-    println("Inicio subtarea2b")
+fun subTarea2B() {
+    println("Inicio subTarea2B")
     Thread.sleep(700)
-    println("Fin subtarea2b")
+    println("Fin subTarea2B")
 }
 
 fun tarea2() {
     println("Inicio tarea2")
-    subtarea2a()
-    subtarea2b()
+    subTarea2A()
+    subTarea2B()
     println("Fin tarea2")
 }
 
