@@ -3,25 +3,26 @@ package Corrutinas
 import kotlinx.coroutines.*
 
 suspend fun tarea1() {
-    println("Inicio tarea1")
+    println("Inicio tarea1 en el hilo ${Thread.currentThread().name}")
     delay(1000)
     println("Fin tarea1")
+
 }
 
 suspend fun subtarea2a() {
-    println("Inicio subtarea2a")
+    println("Inicio subtarea2a en el hilo ${Thread.currentThread().name}")
     delay(1000)
     println("Fin subtarea2a")
 }
 
 suspend fun subtarea2b() {
-    println("Inicio subtarea2b")
+    println("Inicio subtarea2b en el hilo ${Thread.currentThread().name}")
     delay(700)
     println("Fin subtarea2b")
 }
 
 suspend fun tarea2() {
-    println("Inicio tarea2")
+    println("Inicio tarea2 en el hilo ${Thread.currentThread().name}")
     subtarea2a()
     subtarea2b()
     println("Fin tarea2")

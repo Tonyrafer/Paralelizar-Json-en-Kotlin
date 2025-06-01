@@ -4,39 +4,39 @@ import kotlinx.coroutines.*
 
 
 suspend fun tarea1() {
-    println("Inicio tarea1")
+    println("Inicio tarea1 en el hilo ${Thread.currentThread().name}")
     delay(1000)
-    println("Fin tarea1")
+    println("Fin tarea1 en el hilo ${Thread.currentThread().name}")
 }
 
 suspend fun subtarea2a() {
-    println("Inicio subtarea2a")
+    println("Inicio subtarea2a en el hilo ${Thread.currentThread().name}")
     delay(1000)
-    println("Fin subtarea2a")
+    println("Fin subtarea2a en el hilo ${Thread.currentThread().name}")
 }
 
 suspend fun subtarea2b() {
-    println("Inicio subtarea2b")
+    println("Inicio subtarea2b en el hilo ${Thread.currentThread().name}")
     delay(700)
-    println("Fin subtarea2b")
+    println("Fin subtarea2b en el hilo ${Thread.currentThread().name}")
 }
 
 suspend fun tarea2() = coroutineScope {
-    println("Inicio tarea2")
-    val jobA = async{ subtarea2a() }
-    val jobB = async{ subtarea2b() }
-    jobA.await()
-    jobB.await()
-    println("Fin tarea2")
+    println("Inicio tarea2 en el hilo ${Thread.currentThread().name}")
+    val jobA = launch{ subtarea2a() }
+    val jobB = launch{ subtarea2b() }
+    jobA.join()
+    jobB.join()
+    println("Fin tarea2 en el hilo ${Thread.currentThread().name}")
 }
 
 fun main() {
-    runBlocking {
+    runBlocking(Dispatchers.Default) {
         val start = System.currentTimeMillis()
-        val job1 = async(Dispatchers.Default) { tarea1() }
-        val job2 = async(Dispatchers.Default) { tarea2() }
-        job1.await()
-        job2.await()
+        val job1 = launch { tarea1() }
+        val job2 = launch { tarea2() }
+        job1.join()
+        job2.join()
         val end = System.currentTimeMillis()
         println("Tiempo total: ${end - start} ms")
     }
