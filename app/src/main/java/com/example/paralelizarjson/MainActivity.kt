@@ -58,7 +58,7 @@ fun CargadorJsonUI(modifier: Modifier = Modifier) {
 
     fun leerJson(contexto: Context, indice: Int): String {
         val nombreArchivo = "data$indice.json"
-        return contexto.assets.open(nombreArchivo).bufferedReader().readText()
+        return contexto.assets.open(nombreArchivo).reader().readText()
     }
 
     suspend fun cargarJson() {

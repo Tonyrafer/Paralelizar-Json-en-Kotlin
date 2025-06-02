@@ -29,16 +29,14 @@ suspend fun tarea2() {
 }
 
 fun main() {
+    val start = System.currentTimeMillis()
     runBlocking {
-        val start = System.currentTimeMillis()
-
         val job1 = launch { tarea1() }
         val job2 = launch { tarea2() }
 
         job1.join()
         job2.join()
-
-        val end = System.currentTimeMillis()
-        println("Tiempo total: ${end - start} ms")
     }
+    val end = System.currentTimeMillis()
+    println("Tiempo total: ${end - start} ms")
 }
